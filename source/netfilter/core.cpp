@@ -679,6 +679,7 @@ private:
 	}
 
 	PacketType HandleInfoQuery(const sockaddr_in &from) {
+		DevWarning("[FastQuery] Handling info query from %s\n", IPToString(from.sin_addr));
 
 		if (info_cache_enabled) {
 			return SendInfoCache(from, static_cast<uint32_t>(Plat_FloatTime()));
