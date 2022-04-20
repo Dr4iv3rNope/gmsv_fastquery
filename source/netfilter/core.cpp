@@ -1,4 +1,5 @@
 #include "core.hpp"
+#include "clientmanager.hpp"
 
 #include <GarrysMod/FactoryLoader.hpp>
 #include <GarrysMod/FunctionPointers.hpp>
@@ -550,6 +551,8 @@ public:
 
 	void SetLuaModifyReplyInfoEnabled(bool enable) { lua_modify_reply_info = enable; }
 
+	ClientManager &GetClientManager() { return client_manager; }
+
 	static std::unique_ptr<Core> Singleton;
 
 private:
@@ -646,6 +649,8 @@ private:
 		bool build_info = false;
 	} lua_thread_data;
 
+	ClientManager client_manager;
+
 	IServerGameDLL *gamedll = nullptr;
 	IVEngineServer *engine_server = nullptr;
 	IFileSystem *filesystem = nullptr;
@@ -681,8 +686,19 @@ private:
 	PacketType HandleInfoQuery(const sockaddr_in &from) {
 		DevWarning("[FastQuery] Handling info query from %s\n", IPToString(from.sin_addr));
 
+		const auto time = static_cast<uint32_t>(Plat_FloatTime());
+
+		if (!client_manager.CheckIPRate(from.sin_addr.s_addr, time)) {
+			DevWarning(
+				"[FastQuery] Client %s hit rate limit\n",
+				IPToString(from.sin_addr)
+			);
+
+			return PacketType::Invalid;
+		}
+
 		if (info_cache_enabled) {
-			return SendInfoCache(from, static_cast<uint32_t>(Plat_FloatTime()));
+			return SendInfoCache(from, time);
 		}
 
 		return PacketType::Good;
@@ -907,6 +923,43 @@ LUA_FUNCTION_STATIC(Tick) {
 	return 0;
 }
 
+//
+// Client Manager Functions
+//
+
+LUA_FUNCTION_STATIC(EnableQueryLimiter) {
+	LUA->CheckType(1, GarrysMod::Lua::Type::Bool);
+	Core::Singleton->GetClientManager().SetState(LUA->GetBool(1));
+	return 0;
+}
+
+LUA_FUNCTION_STATIC(SetMaxQueriesWindow) {
+	LUA->CheckType(1, GarrysMod::Lua::Type::Number);
+
+	Core::Singleton->GetClientManager().SetMaxQueriesWindow(
+		static_cast<uint32_t>(LUA->GetNumber(1))
+	);
+	return 0;
+}
+
+LUA_FUNCTION_STATIC(SetMaxQueriesPerSecond) {
+	LUA->CheckType(1, GarrysMod::Lua::Type::Number);
+
+	Core::Singleton->GetClientManager().SetMaxQueriesPerSecond(
+		static_cast<uint32_t>(LUA->GetNumber(1))
+	);
+	return 0;
+}
+
+LUA_FUNCTION_STATIC(SetGlobalMaxQueriesPerSecond) {
+	LUA->CheckType(1, GarrysMod::Lua::Type::Number);
+
+	Core::Singleton->GetClientManager().SetGlobalMaxQueriesPerSecond(
+		static_cast<uint32_t>(LUA->GetNumber(1))
+	);
+	return 0;
+}
+
 void Initialize(GarrysMod::Lua::ILuaBase *LUA) {
 	LUA->GetField(GarrysMod::Lua::INDEX_GLOBAL, "VERSION");
 	const char *game_version = LUA->CheckString(-1);
@@ -938,6 +991,18 @@ void Initialize(GarrysMod::Lua::ILuaBase *LUA) {
 
 	LUA->PushCFunction(EnableLuaModifyCachedReplyInfo);
 	LUA->SetField(-2, "EnableLuaModifyCachedReplyInfo");
+
+	LUA->PushCFunction(EnableQueryLimiter);
+	LUA->SetField(-2, "EnableQueryLimiter");
+
+	LUA->PushCFunction(SetMaxQueriesWindow);
+	LUA->SetField(-2, "SetMaxQueriesWindow");
+
+	LUA->PushCFunction(SetMaxQueriesPerSecond);
+	LUA->SetField(-2, "SetMaxQueriesPerSecond");
+
+	LUA->PushCFunction(SetGlobalMaxQueriesPerSecond);
+	LUA->SetField(-2, "SetGlobalMaxQueriesPerSecond");
 
 	lua_interface->GetField(GarrysMod::Lua::INDEX_GLOBAL, "hook");
 	if (!lua_interface->IsType(-1, GarrysMod::Lua::Type::TABLE))
