@@ -858,8 +858,7 @@ private:
 	static uintp PacketReceiverThread(void *param) {
 #ifdef SYSTEM_WINDOWS
 
-		SetThreadDescription(GetCurrentThread(),
-												 L"FastQuery packet receiver/analyzer");
+		SetThreadDescription(GetCurrentThread(), L"FastQuery packet receiver/analyzer");
 
 #elif SYSTEM_LINUX
 
