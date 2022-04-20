@@ -679,10 +679,9 @@ private:
 	}
 
 	PacketType HandleInfoQuery(const sockaddr_in &from) {
-		const auto time = static_cast<uint32_t>(Plat_FloatTime());
 
 		if (info_cache_enabled) {
-			return SendInfoCache(from, time);
+			return SendInfoCache(from, static_cast<uint32_t>(Plat_FloatTime()));
 		}
 
 		return PacketType::Good;
